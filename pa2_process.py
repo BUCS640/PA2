@@ -9,8 +9,8 @@
 # Playing the game 
 #   
 
-from pa2_gomoku import Board, Player
-from pa2 import *
+from pa2_gomoku import Board, Player, RandomPlayer
+from pa2 import AIPlayer
 
 
 def process_move(player, board):
@@ -54,15 +54,19 @@ def gomoku(p1, p2):
 
     print('Welcome to Gomoku!')
     print()
-    b = Board(10,10)
+    b = Board(15, 15)
     print(b)
     p1.num_moves = 0
     p2.num_moves = 0
     
     while True:
-        if process_move(p1, b) == True:
+        if process_move(p1, b):
+            return b
+        if process_move(p2, b):
             return b
 
-        if process_move(p2, b) == True:
-            return b
 
+if __name__ == "__main__":
+    p1 = AIPlayer("X")
+    p2 = AIPlayer("O")
+    gomoku(p1, p2)
