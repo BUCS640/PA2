@@ -19,6 +19,7 @@ class Board:
     def __init__(self, height=10, width=10):
         self.height = height
         self.width = width
+        self.__used = 0
         self.slots = [[' '] * width for r in range(height)]
 
     def __repr__(self):
@@ -63,15 +64,35 @@ class Board:
 
         if self.can_add_to(row, col):
             self.slots[row][col] = checker
+            self.__used += 1
+
+    def delete_checker(self, row, col, undo=True):
+        """
+        delete a move. If Undo = True, then
+        :param row: X pos
+        :param col: Y pos
+        :param undo: Whether the deletion is undo. If it is, then a warning will be outputted.
+        :return whether deletion is successful.
+        """
+        if self.slots[row][col] != ' ':
+            if undo:
+                print("Only for debug: player decide to make an undo.")
+            self.slots[row][col] = ' '
+            self.__used -= 1
+            return True
+        else:
+            return False
+
 
     def reset(self):
+        self.__used = 0
         self.slots = [[' '] * self.width for r in range(self.height)]
 
     def is_full(self):
-        for r in range(self.height):
-            if ' ' in self.slots[r]:
-                return False
-        return True
+        return self.width * self.height <= self.__used
+
+    def is_empty(self):
+        return self.__used == 0
 
     def is_win_for(self, checker, r, c):
         """ Checks for if the specified checker added to position x, y will 
@@ -185,6 +206,26 @@ class Board:
             if cnt == 5:
                 return True
 
+        return False
+
+    def iter_empty_places(self):
+        """
+        Get a iterator, contains all places which are empty and can add a new check.
+        :return: An iterator of tuples.
+        """
+        for row in range(0, self.width):
+            for col in range(0, self.height):
+                if self.slots[row][col] == ' ':
+                    yield row, col
+
+    def has_neighbor(self, r, c):
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if i == 0 and j == 0:
+                    continue
+                if 0 <= r + i < self.width and 0 <= c + j < self.height:
+                    if self.slots[r+i][c+j] != ' ':
+                        return True
         return False
 
 
