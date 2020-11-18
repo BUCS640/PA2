@@ -110,6 +110,7 @@ class AIPlayer(Player):
         (2500000, "111010"),
         (5000000, "01111"),
         (5000000, "11110"),
+        (float("inf"), "11111"),
     ]
     CONST_SCORES.reverse()
 
@@ -118,7 +119,7 @@ class AIPlayer(Player):
     """
     from pa2_gomoku import Board
 
-    def __init__(self, checker, difficulty=1, use_accum=False):
+    def __init__(self, checker, difficulty=1, use_accum=True):
         """
         :param checker: This player's checker symbol
         :param difficulty: specify difficulty
@@ -143,16 +144,14 @@ class AIPlayer(Player):
             seconds = pow(2, difficulty - 3)
         self.depth = depth
         self.seconds = seconds
-        self.__next_x = -1
-        self.__next_y = -1
+        self.__next_moves = []
         self.use_accum = use_accum
 
     def __init_nextMove(self):
-        self.__next_x = -1
-        self.__next_y = -1
+        self.__next_moves.clear()
 
     def __my_max(self, board: Board,
-                 depth=0, alpha=float("inf"), beta=float("-inf")):
+                 depth=0, alpha=float("-inf"), beta=float("inf")):
         # quit condition:
         if depth >= self.depth:
             return self.__evaluate(board)
@@ -168,11 +167,14 @@ class AIPlayer(Player):
             board.delete_checker(n_row, n_col, undo=False)
             if value > alpha:
                 if depth == 0:
-                    self.__next_x = n_row
-                    self.__next_y = n_col
+                    self.__next_moves.clear()
+                    self.__next_moves.append((n_row, n_col))
                 if value >= beta:
                     return beta
                 alpha = value
+            elif value == alpha:
+                if depth == 0:
+                    self.__next_moves.append((n_row, n_col))
 
         return alpha
 
@@ -371,15 +373,15 @@ class AIPlayer(Player):
             cent_col = board.height // 2
             buff_row = round(board.width / 20)
             buff_col = round(board.width / 20)
-            self.__next_x = random.randint(-buff_row, buff_row) + cent_row
-            self.__next_y = random.randint(-buff_col, buff_col) + cent_col
+            self.__next_moves.append(
+                (random.randint(-buff_row, buff_row) + cent_row,
+                 random.randint(-buff_col, buff_col) + cent_col))
         else:
             self.__my_max(board)
-        return self.__next_x, self.__next_y
-        ################### TODO: ######################################
-        # Implement your strategy here. 
+        row, col = random.choice(self.__next_moves)
+        return row, col
+        ################################################################
+        # Implement your strategy here.
         # Feel free to call as many as helper functions as you want.
         # We only cares the return of this function
         ################################################################
-
-
