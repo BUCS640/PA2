@@ -386,12 +386,7 @@ class RandomPlayer(Player):
         """
         assert (board.is_full() == False)
         self.num_moves += 1
-        open_pos = []
-        for row in range(board.height):
-            for col in range(board.width):
-                if board.can_add_to(row, col):
-                    open_pos.append((row, col))
-
+        open_pos = list(board.iter_empty_places())
         return random.choice(open_pos)
 
 #### test case #####
