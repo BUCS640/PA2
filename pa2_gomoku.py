@@ -338,19 +338,28 @@ class Board:
 
 
 class Player:
-    def __init__(self, checker):
-        assert (checker == 'X' or checker == 'O')
+    def __init__(self, checker: str):
+        self.__chk = self.__opp = '\0'
         self.checker = checker
         self.num_moves = 0
 
     def __repr__(self):
-        return "Player: " + self.checker
+        return "Player: {0:s}".format(self.checker)
 
+    @property
+    def checker(self):
+        return self.__chk
+
+    @checker.setter
+    def checker(self, new: str):
+        if not (new == 'X' or new == 'O'):
+            raise ValueError("checker can only be 'X' or 'O'")
+        self.__chk = new
+        self.__opp = 'O' if new == 'X' else 'X'
+
+    @property
     def opponent_checker(self):
-        if self.checker == 'X':
-            return 'O'
-        else:
-            return 'X'
+        return self.__opp
 
     def next_move(self, board):
         """ gets and returns the called Player's next move for a game on
@@ -384,7 +393,7 @@ class RandomPlayer(Player):
             input: board is a Board object for the game that the called
                    Player is playing.
         """
-        assert (board.is_full() == False)
+        assert (not board.is_full())
         self.num_moves += 1
         open_pos = list(board.iter_empty_places())
         return random.choice(open_pos)
