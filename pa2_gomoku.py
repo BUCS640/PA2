@@ -10,138 +10,205 @@
 #
 # 
 import random
+import numpy as np
 
 
 class Board:
     """ a data type for a Connect Five board with arbitrary dimensions
     """
 
-    def __init__(self, height=10, width=10):
-        self.height = height
-        self.width = width
-        self.__used = 0
-        self.slots = [[' '] * width for r in range(height)]
+    def __init__(self, height: int = 10, width: int = 10,
+                 checker_p1: str = "X", checker_p2: str = "O"):
+        if height <= 0 or width <= 0:
+            raise ValueError("height or width should be both greater than 0.")
+        # the size of the board
+        self.__height = height
+        self.__width = width
+        # set checker mapping
+        self.__checker = [" ", "\0", "\0"]
+        self.__chk_map = dict()
+        self.set_checkers(checker_p1, checker_p2)
+        # a numpy object to store the board
+        self.__slots = np.zeros((height, width), dtype=np.int)
+
+    @property
+    def height(self):
+        """
+        Returns the height of the Board.
+        :return: An integer, indicate the value of height.
+        """
+        return self.__height
+
+    @property
+    def width(self):
+        """
+        Returns the width of the Board.
+        :return: An integer, indicate the value of width.
+        """
+        return self.__width
+
+    @property
+    def checker_player1(self):
+        return self.__checker[1]
+
+    @property
+    def checker_player2(self):
+        return self.__checker[2]
+
+    @property
+    def slots(self):
+        return self.__slots
+
+    def set_checkers(self, checker_p1: str, checker_p2: str):
+        """
+        Set the checker symbol of this Board object. Both symbol should not
+        be empty, neither have the same symbol. If you specify some checkers
+        symbol with more than 1 characters, a warning message will be outputed.
+
+        :param checker_p1: The symbol of 1st player's checker.
+        :param checker_p2: The symbol of 2nd player's checker.
+        """
+        if checker_p1 == " " or checker_p2 == " ":
+            raise ValueError("You cannot specify a checker with space ' ' character.")
+        if checker_p1 == checker_p2:
+            raise ValueError("You must ensure that two checkers are different.")
+        if len(checker_p1) > 1:
+            print("checker_p1 = '{0:s}' has more than 1 chars.".format(checker_p1))
+        if len(checker_p2) > 2:
+            print("checker_p2 = '{0:s}' has more than 1 chars.".format(checker_p2))
+        self.__checker[1] = checker_p1
+        self.__checker[2] = checker_p2
+        self.__chk_map.clear()
+        self.__chk_map[checker_p1] = 1
+        self.__chk_map[checker_p2] = 2
 
     def __repr__(self):
         """ Returns a string representation of a Board object.
         """
-        s = ''  # begin with an empty string
-
         # add one row of slots at a time to s
-        for row in range(self.height):
-            s += '|'  # one vertical bar at the start of the row
-            for col in range(self.width):
-                s += self.slots[row][col] + '|'
-
-            s += ' ' + str(row % 10) + '\n'
-
-        s += "-" * (self.width * 2 + 3) + "\n"
-        for c in range(self.width):
-            s += ' ' + str(c % 10)
+        # this is the optimized version
+        s = "\n".join([
+            # there is one vertical bar at the start of the row
+            "|" + "|".join([self.__checker[self.slots[row, col]]
+                            for col in range(self.width)]) + "| " + str(row % 10)
+            for row in range(self.height)
+        ])
+        s += ("\n" + "-" * (self.width * 2 + 3) + "\n ")
+        s += " ".join([str(c % 10) for c in range(self.width)])
         s += '\n'
         return s
 
-    def can_add_to(self, row, col):
+    def can_add_to(self, row: int, col: int):
         """ returns True if you can add a checker to the specified position 
             (row, col) in the called Board object, and False otherwise.
             input: row, col are integers
         """
-        if col < 0 or col >= self.width \
-                or row < 0 or row >= self.height:
+        if (col < 0 or col >= self.width) or (row < 0 or row >= self.height):
             return False
-        elif self.slots[row][col] != ' ':
-            return False
-        else:
-            return True
+        return self.slots[row, col] == 0
 
-    def add_checker(self, checker, row, col):
-        """ adds the specified checker (either 'X' or 'O') to the
-            column with the specified index col in the called Board.
-            inputs: checker is either 'X' or 'O'
-                    col is a valid column index
+    def add_checker(self, checker: str, row: int, col: int):
         """
-        assert (checker == 'X' or checker == 'O')
+        adds the specified checker to the column with the specified
+        index col in the called Board. The checker must have been
+        defined using constructor or :class:`set_checkers` function.
+
+        :param checker: checker which is already defined.
+        :param row: row to add the move
+        :param col: col to add the move
+        """
+        if checker not in self.__chk_map:
+            raise ValueError("Unexpected checker symbol '{0:s}'".format(checker))
 
         if self.can_add_to(row, col):
-            self.slots[row][col] = checker
-            self.__used += 1
+            self.slots[row][col] = self.__chk_map[checker]
 
-    def delete_checker(self, row, col, undo=True):
+    def add_checker_id(self, checker_id: int, row: int, col: int):
+        if checker_id == 1 or checker_id == 2:
+            if self.can_add_to(row, col):
+                self.slots[row][col] = checker_id
+        else:
+            raise ValueError("Invalid checker id {0:d}".format(checker_id))
+
+    def delete_checker(self, row: int, col: int):
         """
-        delete a move. If Undo = True, then
+        Delete the move from the board.
         :param row: X pos
         :param col: Y pos
-        :param undo: Whether the deletion is undo. If it is, then a warning will be outputted.
-        :return whether deletion is successful.
         """
-        if self.slots[row][col] != ' ':
-            if undo:
-                print("Only for debug: player decide to make an undo.")
-            self.slots[row][col] = ' '
-            self.__used -= 1
-            return True
-        else:
-            return False
-
+        self.slots[row, col] = 0
 
     def reset(self):
-        self.__used = 0
-        self.slots = [[' '] * self.width for r in range(self.height)]
+        """
+        An utility to reset the Board.
+        """
+        self.slots.fill(0)
 
     def is_full(self):
-        return self.width * self.height <= self.__used
+        """
+        Return if the board is full of moves.
+        :return: True of False, the board is full.
+        """
+        return np.count_nonzero(self.slots)
 
     def is_empty(self):
-        return self.__used == 0
-
-    def is_win_for(self, checker, r, c):
-        """ Checks for if the specified checker added to position x, y will 
-            lead to a win
         """
-        assert (checker == 'X' or checker == 'O')
-        return self.is_horizontal_win(checker, r, c) or \
-               self.is_vertical_win(checker, r, c) or \
-               self.is_diagonal1_win(checker, r, c) or \
-               self.is_diagonal2_win(checker, r, c)
+        Return if no players have made a move.
+        :return: True of False, the board is empty.
+        """
+        return np.count_nonzero(self.slots == 0)
 
-    def is_horizontal_win(self, checker, r, c):
-        cnt = 0
+    def is_win_for(self, checker: str, row: int, col: int):
+        """
+        Checks for if the specified checker added to position row, col
+        will lead to a win
+        :param checker: checker which is already defined.
+        :param row: row to add the move
+        :param col: col to add the move
+        :return: True or False it's win.
+        """
+        if checker not in self.__chk_map:
+            raise ValueError("Unexpected checker symbol '{0:s}'".format(checker))
 
-        for i in range(5):
+        checker_id = self.__chk_map[checker]
+        return self.__is_horizontal_win(checker_id, row, col) or self.__is_vertical_win(checker_id, row, col) or \
+               self.__is_diagonal1_win(checker_id, row, col) or self.__is_diagonal2_win(checker_id, row, col)
+
+    def __is_horizontal_win(self, checker_id: int, row: int, col: int):
+        """
+        Check when given row and col, if the surrounding contain 5 same checkers.
+        Notes: We assume that self.slots[row, col] is already the same!
+        :param checker_id: Player's checker_id
+        :param row: row
+        :param col: col
+        :return: True if win, else false.
+        """
+        cnt = 1
+        for i in range(1, 5):
             # Check if the next four columns in this row
             # contain the specified checker.
-            if c + i < self.width and \
-               self.slots[r][c + i] == checker:
+            if (col + i < self.width) and (self.slots[row, col + i] == checker_id):
                 cnt += 1
-                # print('Hl: ' + str(cnt))
             else:
                 break
-
         if cnt == 5:
             return True
         else:
             # check towards left           
             for i in range(1, 6 - cnt):
-                if c - i >= 0 and\
-                   self.slots[r][c - i] == checker:
+                if (col - i >= 0) and (self.slots[row, col - i] == checker_id):
                     cnt += 1
-                    # print('Hr: ' + str(cnt))
                 else:
                     break
-            if cnt == 5:
-                return True
+        return cnt == 5
 
-        return False
-
-    def is_vertical_win(self, checker, r, c):
-        cnt = 0
-        for i in range(5):
+    def __is_vertical_win(self, checker_id: int, row: int, col: int):
+        cnt = 1
+        for i in range(1, 5):
             # Check if the next four rows in this col
             # contain the specified checker.            
-            if r + i < self.width and \
-               self.slots[r + i][c] == checker:
+            if (row + i < self.width) and (self.slots[row + i, col] == checker_id):
                 cnt += 1
-                # print('Vdwn: ' + str(cnt))
             else:
                 break
 
@@ -150,21 +217,17 @@ class Board:
         else:
             # check upwards
             for i in range(1, 6 - cnt):
-                if r - i >= 0 and \
-                   self.slots[r - i][c] == checker:
+                if (row - i >= 0) and (self.slots[row - i, col] == checker_id):
                     cnt += 1
                     # print('Vup: ' + str(cnt))
                 else:
                     break
-            if cnt == 5:
-                return True
+        return cnt == 5
 
-        return False
-
-    def is_diagonal1_win(self, checker, r, c):
-        cnt = 0
-        for i in range(5):
-            if (r + i < self.height) and (c + i < self.width) and (self.slots[r + i][c + i] == checker):
+    def __is_diagonal1_win(self, checker_id: int, row: int, col: int):
+        cnt = 1
+        for i in range(1, 5):
+            if (row + i < self.height) and (col + i < self.width) and (self.slots[row + i, col + i] == checker_id):
                 cnt += 1
                 # print('D1: L ' + str(cnt))
             else:
@@ -173,60 +236,53 @@ class Board:
             return True
         else:
             for i in range(1, 6 - cnt):
-                if (r - i >= 0) and (c - i >= 0) and (self.slots[r - i][c - i] == checker):
+                if (row - i >= 0) and (col - i >= 0) and (self.slots[row - i, col - i] == checker_id):
                     cnt += 1
                     # print('D1: R ' + str(cnt))
                 else:
                     break
+        return cnt == 5
 
-            if cnt == 5:
-                return True
-
-        return False
-
-    def is_diagonal2_win(self, checker, r, c):
-        cnt = 0
-        for i in range(5):
-            if (r - i >= 0) and (c + i < self.width) and (self.slots[r - i][c + i] == checker):
+    def __is_diagonal2_win(self, checker_id: int, row: int, col: int):
+        cnt = 1
+        for i in range(1, 5):
+            if (row - i >= 0) and (col + i < self.width) and (self.slots[row - i, col + i] == checker_id):
                 cnt += 1
                 # print('D2: L ' + str(cnt))
             else:
                 break
-
         if cnt == 5:
             return True
         else:
             for i in range(1, 6 - cnt):
-                if (r + i < self.height) and (c - i >= 0) and (self.slots[r + i][c - i] == checker):
+                if (row + i < self.height) and (col - i >= 0) and (self.slots[row + i][col - i] == checker_id):
                     cnt += 1
                     # print('D2: R ' + str(cnt))
                 else:
                     break
-
-            if cnt == 5:
-                return True
-
-        return False
+        return cnt == 5
 
     def iter_empty_places(self):
         """
         Get a iterator, contains all places which are empty and can add a new check.
         :return: An iterator of tuples.
         """
-        for row in range(0, self.width):
-            for col in range(0, self.height):
-                if self.slots[row][col] == ' ':
-                    yield row, col
+        rows, cols = np.where(self.slots == 0)
+        for row, col in zip(rows, cols):
+            yield row, col
 
-    def has_neighbor(self, r, c):
-        for i in range(-1, 2):
-            for j in range(-1, 2):
-                if i == 0 and j == 0:
-                    continue
-                if 0 <= r + i < self.width and 0 <= c + j < self.height:
-                    if self.slots[r+i][c+j] != ' ':
-                        return True
-        return False
+    def has_neighbor(self, row: int, col: int):
+        """
+        An utility to test whether a place, has neighbor moves.
+        :param row: The index of row
+        :param col: The index of column
+        :return: Return True if has at least a neighbor move, or else, False.
+        """
+        lower_row = max(0, row - 1)
+        upper_row = min(self.height, row + 2)
+        lower_col = max(0, col - 1)
+        upper_col = min(self.height, col + 2)
+        return np.count_nonzero(self.slots[lower_row:upper_row, lower_col:upper_col]) > 1
 
 
 ###### test case #############
@@ -263,7 +319,7 @@ class Board:
 # b1.add_checker('O', 4, 3)
 # b1.add_checker('O', 5, 2)
 # print(b1)
-# b1.is_win_for('O', 5, 2)
+# assert(b1.is_win_for('O', 5, 2))
 
 # b2 = Board(2,2)
 # b2.add_checker("X", 0,0)
