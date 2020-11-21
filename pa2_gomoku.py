@@ -149,14 +149,14 @@ class Board:
         Return if the board is full of moves.
         :return: True of False, the board is full.
         """
-        return np.count_nonzero(self.slots)
+        return np.count_nonzero(self.slots == 0) == 0
 
     def is_empty(self):
         """
         Return if no players have made a move.
         :return: True of False, the board is empty.
         """
-        return np.count_nonzero(self.slots == 0)
+        return np.count_nonzero(self.slots) == 0
 
     def is_win_for(self, checker: str, row: int, col: int):
         """
@@ -282,7 +282,9 @@ class Board:
         upper_row = min(self.height, row + 2)
         lower_col = max(0, col - 1)
         upper_col = min(self.height, col + 2)
-        return np.count_nonzero(self.slots[lower_row:upper_row, lower_col:upper_col]) > 1
+        sliced = self.slots[lower_row:upper_row, lower_col:upper_col]
+        sliced[row-lower_row, col-lower_col] = 0
+        return np.count_nonzero(sliced) > 0
 
 
 ###### test case #############
