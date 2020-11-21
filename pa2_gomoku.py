@@ -11,6 +11,7 @@
 # 
 import random
 import numpy as np
+from collections import deque
 
 
 class Board:
@@ -30,6 +31,7 @@ class Board:
         self.set_checkers(checker_p1, checker_p2)
         # a numpy object to store the board
         self.__slots = np.zeros((height, width), dtype=np.int)
+        self.__moves_history = deque()
 
     @property
     def height(self):
@@ -58,6 +60,18 @@ class Board:
     @property
     def slots(self):
         return self.__slots
+
+    def get_checker_id(self, checker: str):
+        """
+        Get the internal id for specified checker symbol.
+        If not found, then `None` will be returned.
+
+        :param checker: A str standing for the checker symbol.
+        :return: Integer if found, else `None`.
+        """
+        if checker in self.__chk_map:
+            return self.__chk_map[checker]
+        return None
 
     def set_checkers(self, checker_p1: str, checker_p2: str):
         """
@@ -122,11 +136,13 @@ class Board:
 
         if self.can_add_to(row, col):
             self.slots[row][col] = self.__chk_map[checker]
+            self.__moves_history.append((row, col))
 
     def add_checker_id(self, checker_id: int, row: int, col: int):
         if checker_id == 1 or checker_id == 2:
             if self.can_add_to(row, col):
                 self.slots[row][col] = checker_id
+                self.__moves_history.append((row, col))
         else:
             raise ValueError("Invalid checker id {0:d}".format(checker_id))
 
@@ -136,13 +152,16 @@ class Board:
         :param row: X pos
         :param col: Y pos
         """
-        self.slots[row, col] = 0
+        if self.slots[row, col] != 0:
+            self.slots[row, col] = 0
+            self.__moves_history.pop()
 
     def reset(self):
         """
         An utility to reset the Board.
         """
         self.slots.fill(0)
+        self.__moves_history.clear()
 
     def is_full(self):
         """
@@ -262,14 +281,55 @@ class Board:
                     break
         return cnt == 5
 
-    def iter_empty_places(self):
+    def iter_empty(self):
         """
-        Get a iterator, contains all places which are empty and can add a new check.
-        :return: An iterator of tuples.
+        Get an iterator, contains all places which are empty and can add a new check.
+        :return:
         """
         rows, cols = np.where(self.slots == 0)
         for row, col in zip(rows, cols):
             yield row, col
+
+    def iter_recent_empty(self):
+        """
+        Get an iterator, contains all places which are empty.
+        The one who's nearest to the last move will be returned at first.
+        :return: An iterator of tuples.
+        """
+        assert(len(self.__moves_history) > 0)
+        cur = self.__moves_history[-1]
+        temp = np.zeros((self.height, self.width), dtype=np.int8)
+        # BFS search to return tuples
+        q = deque()
+        q.append(cur)
+        temp[cur[0], cur[1]] = 1
+        while len(q) > 0:
+            cur = q.popleft()
+            c_row, c_col = cur
+            # up
+            if c_row > 0 and temp[c_row - 1, c_col] == 0:
+                q.append((c_row - 1, c_col))
+                temp[c_row - 1, c_col] = 1
+                if self.slots[c_row - 1, c_col] == 0:
+                    yield c_row - 1, c_col
+            # right
+            if c_col < self.width - 1 and temp[c_row, c_col + 1] == 0:
+                q.append((c_row, c_col + 1))
+                temp[c_row, c_col + 1] = 1
+                if self.slots[c_row, c_col + 1] == 0:
+                    yield c_row, c_col + 1
+            # down
+            if c_row < self.height - 1 and temp[c_row + 1, c_col] == 0:
+                q.append((c_row + 1, c_col))
+                temp[c_row + 1, c_col] = 1
+                if self.slots[c_row + 1, c_col] == 0:
+                    yield c_row + 1, c_col
+            # left
+            if c_col > 0 and temp[c_row, c_col - 1] == 0:
+                q.append((c_row, c_col - 1))
+                temp[c_row, c_col - 1] = 1
+                if self.slots[c_row, c_col - 1] == 0:
+                    yield c_row, c_col - 1
 
     def has_neighbor(self, row: int, col: int):
         """
@@ -395,7 +455,7 @@ class RandomPlayer(Player):
         """
         assert (not board.is_full())
         self.num_moves += 1
-        open_pos = list(board.iter_empty_places())
+        open_pos = list(board.iter_empty())
         return random.choice(open_pos)
 
 #### test case #####
