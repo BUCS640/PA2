@@ -13,107 +13,20 @@
 
 from pa2_gomoku import Player
 import random
+# numpy is used to accelerate matrix computing
+import numpy as np
 
 
-class QString:
-    def __init__(self, maxLen=6):
-        self.__max = maxLen
-        self.__N = maxLen + 1
-        self.__data = [' '] * (maxLen + 1)
-        self.__head = 0
-        self.__tail = 0
-        self.__len = 0
-
-    def __repr__(self):
-        return "QueueString: \'{0:s}\'".format(self.__str__())
-
-    def __str__(self):
-        if self.__head < self.__tail:
-            return "".join(self.__data[self.__head:self.__tail])
-        elif self.__head == self.__tail:
-            return ""
-        else:
-            return "".join(self.__data[self.__head:]) + "".join(self.__data[:self.__tail])
-
-    def __len__(self):
-        return self.__len
-
-    def put(self, c):
-        if type(c) != str or len(c) != 1:
-            raise ValueError("must specify 1 char.")
-        self.__data[self.__tail] = c
-        self.__tail = (self.__tail + 1) % self.__N
-        if self.__len < self.__max:
-            self.__len += 1
-        else:
-            self.__head = (self.__head + 1) % self.__N
-
-    def clear(self):
-        self.__head = self.__tail
-        self.__len = 0
-
-    def rewind(self, count: int):
-        self.__head = (self.__head - count) % self.__N
-        self.__len = (self.__len + count) % self.__N
-
-    def __eq__(self, other):
-        if super.__eq__(self, other):
-            return True
-        else:
-            return self.__str__() == other
+FIVE = 7
+FOUR = 6
+THREE = 4
+TWO = 2
+SFOUR = 5
+STHREE = 3
+STWO = 1
 
 
 class AIPlayer(Player):
-    CONST_SCORES = SCORES = [
-        (0,       "00000"),
-        (1,       "00001"),
-        (1,       "10000"),
-        (10,      "00010"),
-        (10,      "01000"),
-        (25,      "00100"),
-        (100,     "10001"),
-        (250,     "010001"),
-        (250,     "100010"),
-        (300,     "01001"),
-        (300,     "10010"),
-        (400,     "10100"),
-        (400,     "00101"),
-        (500,     "00011"),
-        (500,     "11000"),
-        (4000,    "01010"),
-        (5000,    "00110"),
-        (5000,    "01100"),
-        (10000,   "11001"),
-        (10000,   "10011"),
-        (10000,   "10101"),
-        (25000,   "011001"),
-        (25000,   "110010"),
-        (25000,   "010011"),
-        (25000,   "100110"),
-        (25000,   "010101"),
-        (25000,   "101010"),
-        (40000,   "01011"),
-        (40000,   "10110"),
-        (40000,   "01101"),
-        (40000,   "11010"),
-        (50000,   "00111"),
-        (50000,   "11100"),
-        (500000,  "01110"),
-        (1000000, "10111"),
-        (1000000, "11011"),
-        (1000000, "11101"),
-        (2500000, "010111"),
-        (2500000, "101110"),
-        (2500000, "011011"),
-        (2500000, "110110"),
-        (2500000, "011101"),
-        (2500000, "111010"),
-        (5000000, "01111"),
-        (5000000, "11110"),
-        (float("inf"), "11111"),
-    ]
-    CONST_SCORES.reverse()
-
     """ a subclass of Player that looks ahead some number of moves and 
     strategically determines its best next move.
     """
@@ -146,220 +59,17 @@ class AIPlayer(Player):
         self.seconds = seconds
         self.__next_moves = []
         self.use_accum = use_accum
+        self.__temp_record = None
 
     def __init_nextMove(self):
         self.__next_moves.clear()
 
-    def __my_max(self, board: Board,
-                 depth=0, alpha=float("-inf"), beta=float("inf")):
-        # quit condition:
-        if depth >= self.depth:
-            return self.__evaluate(board)
-
-        for n_row, n_col in board.iter_empty_places():
-            if not board.has_neighbor(n_row, n_col):
-                continue
-            if depth % 2 == 0:
-                board.add_checker(self.checker, n_row, n_col)
-            else:
-                board.add_checker(self.opponent_checker(), n_row, n_col)
-            value = -self.__my_max(board, depth+1, -beta, -alpha)
-            board.delete_checker(n_row, n_col, undo=False)
-            if value > alpha:
-                if depth == 0:
-                    self.__next_moves.clear()
-                    self.__next_moves.append((n_row, n_col))
-                if value >= beta:
-                    return beta
-                alpha = value
-            elif value == alpha:
-                if depth == 0:
-                    self.__next_moves.append((n_row, n_col))
-
-        return alpha
-
-    def __evaluate(self, board: Board):
-        """
-        Evaluate the score of the current board.
-        :param board: The board object
-        :return: A score, numeric.
-        """
-        b_width = board.width
-        b_height = board.height
-
-        # Whether to use accum version. If self.accum=True, then the function will be faster,
-        # If self.accum=False, the function will be slower but can be useful for debugging.
-        score_board = None
-        score_num = 0
-        if not self.use_accum:
-            # score_board is used to store scores of each moves
-            score_board = [[0 for c in range(b_width)] for r in range(b_height)]
-
-        me = self.checker
-        oppo = self.opponent_checker()
-
-        # =======================================
-        # we need to scan 4 directions
-        # 1. Horizontal scan
-        if b_width >= 5:
-            for r in range(b_height):
-                line = [(r, c, board.slots[r][c]) for c in range(b_width)]
-                evals = self.scan(line, me, oppo)
-                if not self.use_accum:
-                    for _, c, score in evals:
-                        score_board[r][c] += score
-                else:
-                    score_num += evals
-
-        # 2. Vertical Scan
-        if b_height >= 5:
-            for c in range(b_width):
-                line = [(r, c, board.slots[r][c]) for r in range(b_height)]
-                evals = self.scan(line, me, oppo)
-                if not self.use_accum:
-                    for r, _, score in evals:
-                        score_board[r][c] += score
-                else:
-                    score_num += evals
-
-        if b_width >= 5 and b_height >= 5:
-            # 3. Diag NW-SE Scan
-            for diff in range(5 - b_width, b_height - 5 + 1):  # because of range, we should + 1
-                line = []
-                for r in range(b_height):
-                    c = r - diff
-                    if c >= b_width:
-                        break
-                    if c >= 0:
-                        line.append((r, c, board.slots[r][c]))
-                evals = self.scan(line, me, oppo)
-                if not self.use_accum:
-                    for r1, c1, score in evals:
-                        score_board[r1][c1] += score
-                else:
-                    score_num += evals
-
-            # 4. Diag NE-SW Scan
-            for diff in range(4, b_width + b_height - 4 + 1):
-                line = []
-                for r in range(b_height):
-                    c = diff - r
-                    if c < 0:
-                        break
-                    if c < b_width:
-                        line.append((r, c, board.slots[r][c]))
-                evals = self.scan(line, me, oppo)
-                if not self.use_accum:
-                    for r1, c1, score in evals:
-                        score_board[r1][c1] += score
-                else:
-                    score_num += evals
-
-        # if not self.use_accum, we have one more step to accumulate scores.
-        if not self.use_accum:
-            score_num = 0
-            for r in range(b_height):
-                for c in range(b_width):
-                    score_num += score_board[r][c]
-        return score_num
-
-    @staticmethod
-    def match(p: str, offset):
-        for score, pattern in AIPlayer.CONST_SCORES:
-            if len(pattern) <= len(p):
-                pos = p.find(pattern)
-                if pos != -1:
-                    ans = []
-                    for i, c in enumerate(pattern):
-                        if c == '1':
-                            ans.append(pos + i + offset)
-                    return score, ans
-        return 0, None
-
-    def scan(self, line: list, p1, p2):
-        """
-        Scan a line, calculate the score of both player 1 (p1) and player 2 (p2).
-        :param line: A list of tuple: (row, col, checker)
-        :param p1: Player 1's checker pattern
-        :param p2: Player 2's checker pattern
-        :return: If accum=False, then an array of the following form: (slot_row, slot_col, slot_score)
-                 if True, then return the accumulation of all slot_score.
-        """
-
-        # first we assert p1 != p2. if they are the same, the game cannot proceed.
-        assert (p1 != p2)
-        # cur_check is used to divide strings.
-        # When the newly read cur != cur_check (the previous check), then it means a new string is divided.
-        cur_check = '\0'
-        # cur_pattern is a type of QString. QString is an object which use circular queue to optimize
-        # the algorithm.
-        cur_pattern = QString(6)
-        # ans_map stores the values of each slot.
-        ans_map = dict()
-        # last_check_id is used when a new string is divided, we use this to check how many blanks we can rewind.
-        last_check_id = 0
-        # if not has_checker, we won't call match function. This can save time at the begin.
-        has_checker = False
-
-        def store(score, elements_id):
-            # if score == 0, then elements_id will be None
-            if score > 0:
-                for eid in elements_id:
-                    ans_map.setdefault(eid, score)
-                    if score > ans_map[eid]:
-                        ans_map[eid] = score
-
-        for i in range(len(line)):
-            cur = line[i][2]
-            if cur == ' ' or (cur != ' ' and (cur == cur_check or cur_check == '\0')):
-                if has_checker and len(cur_pattern) == 6:
-                    score, elements_id = AIPlayer.match(str(cur_pattern), i - 6)
-                    store(score, elements_id)
-                if cur != ' ':
-                    cur_check = cur
-                    cur_pattern.put('1')
-                    last_check_id = i
-                    has_checker = True
-                else:
-                    cur_pattern.put('0')
-            else:
-                if has_checker and len(cur_pattern) >= 5:
-                    score, elements_id = AIPlayer.match(str(cur_pattern), i - len(cur_pattern))
-                    store(score, elements_id)
-                cur_pattern.clear()
-                # we check if both two players can share some blank places
-                rewind_nums = i - last_check_id - 1
-                if rewind_nums > 0:
-                    cur_pattern.rewind(rewind_nums)
-                cur_pattern.put('1')
-                cur_check = cur
-                last_check_id = i
-                has_checker = True
-        # when loop end, there's still something not handled
-        if has_checker and len(cur_pattern) >= 5:
-            score, elements_id = AIPlayer.match(str(cur_pattern), len(line) - len(cur_pattern))
-            store(score, elements_id)
-
-        if not self.use_accum:
-            final_ans_list = []
-            for eid, escore in ans_map.items():
-                e_row, e_col, e_check = line[eid]
-                if e_check == p2:
-                    escore *= -1
-                final_ans_list.append((e_row, e_col, escore))
-            return final_ans_list
-        else:
-            ret_sum = 0
-            for escore in ans_map.values():
-                ret_sum += escore
-            return ret_sum
-
     def next_move(self, board: Board):
         """ returns the called AIPlayer's next move for a game on
-            the specified Board object. 
+            the specified Board object.
             input: board is a Board object for the game that the called
                      Player is playing.
-            return: row, col are the coordinated of a vacant location on the board 
+            return: row, col are the coordinated of a vacant location on the board
         """
         assert (not board.is_full())
         assert (self.depth % 2 == 1)
@@ -377,6 +87,7 @@ class AIPlayer(Player):
                 (random.randint(-buff_row, buff_row) + cent_row,
                  random.randint(-buff_col, buff_col) + cent_col))
         else:
+            self.__temp_record = np.zeros((board.height, board.width, 4), dtype=np.bool)
             self.__my_max(board)
         row, col = random.choice(self.__next_moves)
         return row, col
@@ -385,3 +96,331 @@ class AIPlayer(Player):
         # Feel free to call as many as helper functions as you want.
         # We only cares the return of this function
         ################################################################
+
+    def __my_max(self, board: Board,
+                 depth=0, alpha=float("-inf"), beta=float("inf")):
+        # quit condition:
+        if depth >= self.depth:
+            return self.__evaluate(board)
+
+        me_chk_id = board.get_checker_id(self.checker)
+        op_chk_id = board.get_checker_id(self.opponent_checker)
+        for n_row, n_col in board.iter_recent_empty():
+            if not board.has_neighbor(n_row, n_col):  # TODO: this step can also be optimized!
+                continue
+            if depth % 2 == 0:
+                board.add_checker_id(me_chk_id, n_row, n_col)
+            else:
+                board.add_checker_id(op_chk_id, n_row, n_col)
+            value = -self.__my_max(board, depth + 1, -beta, -alpha)
+            board.delete_checker(n_row, n_col)
+            if value > alpha:
+                if depth == 0:
+                    self.__next_moves.clear()
+                    self.__next_moves.append((n_row, n_col))
+                if value >= beta:
+                    return beta
+                alpha = value
+            elif value == alpha:
+                if depth == 0:
+                    self.__next_moves.append((n_row, n_col))
+
+        return alpha
+
+    def __calc_score(self, score_count: dict, me_chk_id: int, op_chk_id: int):
+        """
+        :param score_count:
+        :param me_chk_id:
+        :param op_chk_id:
+        :return:
+        """
+        my_count = score_count[me_chk_id]
+        oppo_count = score_count[op_chk_id]
+        if oppo_count[FIVE] > 0:
+            return -10000
+        if my_count[FIVE] > 0:
+            return 10000
+
+        if my_count[SFOUR] >= 2:
+            my_count[FOUR] += 1
+        if oppo_count[SFOUR] >= 2:
+            oppo_count[FOUR] += 1
+
+        if oppo_count[FOUR] > 0:
+            return -9050
+        if oppo_count[SFOUR] > 0:
+            return -9040
+        if my_count[FOUR] > 0:
+            return 9030
+        if my_count[SFOUR] > 0 and my_count[THREE] > 0:
+            return 9020
+
+        if oppo_count[THREE] > 0 and my_count[SFOUR] == 0:
+            return -9010
+
+        if my_count[THREE] > 1 and oppo_count[THREE] == 0 and oppo_count[STHREE] == 0:
+            return 9000
+
+        my_score = op_score = 0
+        if my_count[SFOUR] > 0:
+            my_score += 400
+
+        if oppo_count[THREE] > 1:
+            op_score += 500
+        elif oppo_count[THREE] > 0:
+            op_score += 100
+
+        if my_count[THREE] > 1:
+            my_score += 2000
+        elif my_count[THREE] > 0:
+            my_score += 400
+
+        if oppo_count[STHREE] > 0:
+            op_score += oppo_count[STHREE] * 10
+        if my_count[STHREE] > 0:
+            my_score += my_count[STHREE] * 10
+
+        if oppo_count[TWO] > 0:
+            op_score += oppo_count[TWO] * 6
+        if my_count[TWO] > 0:
+            my_score += my_count[TWO] * 6
+
+        if oppo_count[STWO] > 0:
+            op_score += oppo_count[STWO] * 2
+        if my_count[STWO] > 0:
+            my_score += my_count[STWO] * 2
+
+        return my_score - op_score
+
+    def __evaluate(self, board: Board):
+        """
+        Evaluate the score of the current board.
+        :param board: The board object
+        :return: A score, numeric.
+        """
+        assert (self.__temp_record is not None)
+        self.__temp_record.fill(0)
+        # score_board has 3 dims: row, col, and 4 different directions.
+        me_chk_id = board.get_checker_id(self.checker)
+        op_chk_id = board.get_checker_id(self.opponent_checker)
+
+        score_count = {me_chk_id: [0] * 8, op_chk_id: [0] * 8}
+
+        # we only iterate slots which has been used
+        nz = board.slots != 0
+        rows, cols = np.where(nz)
+
+        for row, col in zip(rows, cols):
+            if board.slots[row, col] == me_chk_id:
+                self.__check_point(board, row, col, score_count)
+            else:
+                self.__check_point(board, row, col, score_count)
+        return self.__calc_score(score_count, me_chk_id, op_chk_id)
+
+    def __check_point(self, board: Board, row: int, col: int, score_count: dict):
+        b_width = board.width
+        b_height = board.height
+
+        # mostly left, top, right, bottom edge
+        col_lower = max(0, col - 4)
+        col_upper = min(b_width - 1, col + 4)
+        row_lower = max(0, row - 4)
+        row_upper = min(b_height - 1, row + 4)
+
+        my_record = self.__temp_record[row, col]
+        # direction (1, 0)
+        if b_width >= 5 and my_record[0] == 0:
+            indices = (row, range(col_lower, col_upper + 1))
+            self.__scan(board, indices, col - col_lower, score_count, 0)
+        # direction (0, 1)
+        if b_height >= 5 and my_record[1] == 0:
+            indices = (range(row_lower, row_upper + 1), col)
+            self.__scan(board, indices, row - row_lower, score_count, 1)
+        if b_width >= 5 and b_height >= 5:
+            # direction (1, 1)
+            if my_record[2] == 0:
+                offset = col - row
+                row_bgn = max(row_lower, -offset)
+                row_end = min(row_upper, b_width - offset - 1)
+                indices = (range(row_bgn, row_end + 1), range(row_bgn + offset, row_end + offset + 1))
+                self.__scan(board, indices, row - row_bgn, score_count, 2)
+
+            # direction (1, -1)
+            if my_record[3] == 0:
+                offset = col + row
+                row_bgn = max(row_lower, offset - b_width + 1)
+                row_end = min(row_upper, offset)
+                indices = (range(row_bgn, row_end + 1), range(offset - row_bgn, offset - row_end - 1, -1))
+                self.__scan(board, indices, row - row_bgn, score_count, 3)
+
+    def __scan(self, board: Board, indices, self_idx, score_count: dict, direction: int):
+        line = board.slots[indices]
+        me_chk_id = line[self_idx]
+
+        len_line = len(line)
+        # initialize the left_idx and right_idx
+        left_idx = self_idx - 1
+        right_idx = self_idx + 1
+        while right_idx < len_line:
+            if line[right_idx] != me_chk_id:
+                break
+            right_idx += 1
+        right_idx -= 1
+        while left_idx >= 0:
+            if line[left_idx] != me_chk_id:
+                break
+            left_idx -= 1
+        left_idx += 1
+        # how many are the same as the self slot.
+        me_range = right_idx - left_idx + 1
+
+        # initialize the left_range and right_range
+        left_range = left_idx - 1
+        right_range = right_idx + 1
+        while right_range < len_line:
+            if line[right_range] != 0:
+                break
+            right_range += 1
+        right_range -= 1
+        while left_range >= 0:
+            if line[left_range] != 0:
+                break
+            left_range -= 1
+        left_range += 1
+        # how many are available slots
+        chess_range = right_range - left_range + 1
+
+        self.__set_record(indices, left_idx, right_idx, direction)
+        if me_range == 5:
+            score_count[me_chk_id][FIVE] += 1
+
+        # Live Four : XMMMMX
+        # Incoming Four : XMMMMP, PMMMMX
+        elif me_range == 4:
+            left_empty = (left_idx > 1 and line[left_idx - 1] == 0)
+            right_empty = (right_idx < len_line - 1 and line[right_idx + 1] == 0)
+            if left_empty and right_empty:
+                score_count[me_chk_id][FOUR] += 1
+            elif left_empty or right_empty:
+                score_count[me_chk_id][SFOUR] += 1
+
+        # Incoming Four : MXMMM, MMMXM, the two types can both exist
+        # Live Three : XMMMXX, XXMMMX
+        # Sleep Three : PMMMX, XMMMP, PXMMMXP
+        elif me_range == 3:
+            left_empty = right_empty = left_four = right_four = False
+            if left_idx > 1 and line[left_idx - 1] == 0:
+                if left_idx > 2 and line[left_idx - 2] == me_chk_id:  # MXMMM
+                    self.__set_record(indices, left_idx - 2, left_idx - 1, direction)
+                    left_four = True
+                left_empty = True
+
+            if right_idx < len_line - 1 and line[right_idx + 1] == 0:
+                if right_idx < len_line - 2 and line[right_idx + 2] == me_chk_id:  # MMMXM
+                    self.__set_record(indices, right_idx + 1, right_idx + 2, direction)
+                    right_four = True
+                right_empty = True
+
+            if left_four or right_four:
+                score_count[me_chk_id][SFOUR] += 1
+            elif left_empty and right_empty:
+                if chess_range > 5:  # XMMMXX, XXMMMX
+                    score_count[me_chk_id][THREE] += 1
+                else:  # PXMMMXP
+                    score_count[me_chk_id][STHREE] += 1
+            elif left_empty or right_empty:  # PMMMX, XMMMP
+                score_count[me_chk_id][STHREE] += 1
+
+        # Incoming Four: MMXMM, only check right direction
+        # Live Three: XMXMMX, XMMXMX the two types can both exist
+        # Slept Three: PMXMMX, XMXMMP, PMMXMX, XMMXMP
+        # Live Two: XMMX
+        # Slept Two: PMMX, XMMP
+        elif me_range == 2:
+            left_empty = left_three = right_three = False
+            right_empty = right_idx < len_line - 1 and line[right_idx + 1] == 0
+            if left_idx > 1 and line[left_idx - 1] == 0:
+                if left_idx > 2 and line[left_idx - 2] == me_chk_id:
+                    self.__set_record(indices, left_idx - 2, left_idx - 1, direction)
+                    has_left_3 = left_idx > 3
+                    if has_left_3 and line[left_idx - 3] == 0:
+                        if right_empty:  # XMXMMX
+                            score_count[me_chk_id][THREE] += 1
+                        else:  # XMXMMP
+                            score_count[me_chk_id][STHREE] += 1
+                        left_three = True
+                    elif not has_left_3 or line[left_idx - 3] != me_chk_id:  # PMXMMX
+                        if right_empty:
+                            score_count[me_chk_id][STHREE] += 1
+                            left_three = True
+                left_empty = True
+
+            if right_empty:
+                if right_idx < len_line - 2 and line[right_idx + 2] == me_chk_id:
+                    has_right_3 = right_idx < len_line - 3
+                    if has_right_3 and line[right_idx + 3] == me_chk_id:  # MMXMM
+                        self.__set_record(indices, right_idx + 1, right_idx + 2, direction)
+                        score_count[me_chk_id][SFOUR] += 1
+                        right_three = True
+                    elif has_right_3 and line[right_idx + 3] == 0:
+                        # setRecord(self, x, y, right_idx+1, right_idx+2, dir_index, dir)
+                        if left_empty:  # XMMXMX
+                            score_count[me_chk_id][THREE] += 1
+                        else:  # PMMXMX
+                            score_count[me_chk_id][STHREE] += 1
+                        right_three = True
+                    elif left_empty:  # XMMXMP
+                        score_count[me_chk_id][STHREE] += 1
+                        right_three = True
+
+            if left_three or right_three:
+                pass
+            elif left_empty and right_empty:  # XMMX
+                score_count[me_chk_id][TWO] += 1
+            elif left_empty or right_empty:  # PMMX, XMMP
+                score_count[me_chk_id][STWO] += 1
+
+        # Live Two: XMXMX, XMXXMX only check right direction
+        # Slept Two: PMXMX, XMXMP
+        elif me_range == 1:
+            left_empty = False
+            has_right_1 = right_idx < len_line - 1
+            right_empty = has_right_1 and line[right_idx + 1] == 0
+            if left_idx > 1 and line[left_idx - 1] == 0:
+                if left_idx > 2 and line[left_idx - 2] == me_chk_id:
+                    if left_idx > 3 and line[left_idx - 3] == 0:
+                        if right_empty:
+                            pass
+                        elif not has_right_1 or line[right_idx + 1] != me_chk_id:  # XMXMP
+                            score_count[me_chk_id][STWO] += 1
+                left_empty = True
+
+            if right_empty:
+                if right_idx < len_line - 2:
+                    if line[right_idx + 2] == me_chk_id:
+                        if right_idx < len_line - 3 and line[right_idx + 3] == 0:
+                            if left_empty:  # XMXMX
+                                # setRecord(self, x, y, left_idx, right_idx+2, dir_index, dir)
+                                score_count[me_chk_id][TWO] += 1
+                            else:  # PMXMX
+                                score_count[me_chk_id][STWO] += 1
+                    elif line[right_idx + 2] == 0:
+                        if right_idx < len_line - 4 and line[right_idx + 3] == me_chk_id and line[right_idx + 4] == 0:
+                            # XMXXMX
+                            score_count[me_chk_id][TWO] += 1
+
+    def __set_record(self, indices, left: int, right: int, direction: int):
+        assert (type(indices) == tuple)
+        tr, tc = indices
+        new_tr = self.__filter_range(tr, left, right) if type(tr) == range else tr
+        new_tc = self.__filter_range(tc, left, right) if type(tc) == range else tc
+        self.__temp_record[new_tr, new_tc, direction] = 1
+
+    def __filter_range(self, r: range, left: int, right: int):
+        step = r.step
+        if r.step is None:
+            step = 1
+        if step > 0:
+            return range(r[left], r[right] + 1, step)
+        elif step < 0:
+            return range(r[left], r[right] - 1, step)
