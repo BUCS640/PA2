@@ -298,7 +298,7 @@ class Board:
         """
         assert(len(self.__moves_history) > 0)
         cur = self.__moves_history[-1]
-        temp = np.zeros((self.height, self.width), dtype=np.int8)
+        temp = np.zeros((self.height, self.width), dtype=np.bool)
         # BFS search to return tuples
         q = deque()
         q.append(cur)
