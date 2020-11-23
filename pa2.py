@@ -89,7 +89,10 @@ class AIPlayer(Player):
         else:
             self.__temp_record = np.zeros((board.height, board.width, 4), dtype=np.bool)
             self.__my_max(board)
-        row, col = random.choice(self.__next_moves)
+        # in the most case, AI will choose the 1st move
+        row, col = self.__next_moves[0]
+        # TODO: in the rare case, AI will choose other moves
+        # row, col = random.choice(self.__next_moves)
         return row, col
         ################################################################
         # Implement your strategy here.
@@ -101,7 +104,8 @@ class AIPlayer(Player):
                  depth=0, alpha=float("-inf"), beta=float("inf")):
         # quit condition:
         if depth >= self.depth:
-            return self.__evaluate(board)
+            # here the negative symbol is a key point.
+            return -self.__evaluate(board)
 
         me_chk_id = board.get_checker_id(self.checker)
         op_chk_id = board.get_checker_id(self.opponent_checker)
